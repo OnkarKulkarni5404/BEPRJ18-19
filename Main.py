@@ -1,6 +1,8 @@
 import pandas as pd
+import matplotlib.pyplot as mp
 import numpy as np
 import os
+
 
 def load_stock(companyname=""):
     csv_path = os.path.join('individual_stocks_5yr',companyname)
@@ -232,6 +234,48 @@ def calcTrueRange(data):
     TrueRange.insert(0,None)
     return data.assign(ATR=TrueRange)
 
+def rateofchange(data):
+    n=data.shape[0]
+    M=data['close'].diff(n-1)
+    N=data['close'].shift(n-1)
+    ROC=pd.Series(M/N,name='ROC_'+str(n))
+    data=data.join(ROC)
+    return data
+
+
+def ppsr(df):
+    """Calculate Pivot Points, Supports and Resistances for given data
+        Pivot Point (P) = (High + Low + Close)/3
+        Support 1 (S1) = (P x 2) - High
+        Support 2 (S2) = P  -  (High  -  Low)
+        Resistance 1 (R1) = (P x 2) - Low
+        Resistance 2 (R2) = P + (High  -  Low)
+    """
+    PP = pd.Series((df['high'] + df['low'] + df['close']) / 3)
+    R1 = pd.Series(2 * PP - df['low'])
+    S1 = pd.Series(2 * PP - df['high'])
+    R2 = pd.Series(PP + df['high'] - df['low'])
+    S2 = pd.Series(PP - df['high'] + df['low'])
+    R3 = pd.Series(df['high'] + 2 * (PP - df['low']))
+    S3 = pd.Series(df['low'] - 2 * (df['high'] - PP))
+    psr = {'Pivot_Point': PP, 'Resistance_1': R1, 'Support_1': S1, 'Resistance_2': R2, 'Support_2': S2, 'Resistance_3': R3, 'Support_3': S3}
+    PSR = pd.DataFrame(psr)
+    df = df.join(PSR)
+    return df
+
+
+def stochastic_oscillator_k(df):
+    SOk = pd.Series((df['close'] - df['low']) / (df['high'] - df['low']), name='SO%k')
+    df = df.join(SOk)
+    return df
+
+def corrfind(df):
+    col_correlations = df.corr()
+    col_correlations.loc[:, :] = np.tril(col_correlations, k=-1)
+    return col_correlations
+
+
+
 def main():
     data = load_stock(companyname="A_data.csv")
     data = calculateSMA(data,10)
@@ -245,8 +289,23 @@ def main():
     data=calculateAroon(data)
     data=AroonOscillator(data)
     data=calcTrueRange(data)
+    data=rateofchange(data)
+    data=ppsr(data)
+    data=stochastic_oscillator_k(data)
     data.to_csv('A_data_modified.csv', encoding='utf-8', index=False)
     print("Run Successfully")
+
+    newd=pd.read_csv('A_data_modified.csv')
+    data=corrfind(newd)
+    data.to_csv('Co_realtions.csv',encoding='utf-8', index=False)
+    print("Calculated Corelations")
+
+    #newd=newd.corr().sort_values(by=['MACD'],ascending=False)
+    #pd.plotting.scatter_matrix(data,alpha=0.3,figsize=[16,12])
+      
+    mp.plot(data['MACD'])
+    mp.plot(data['close'])
+        
 
 
 if __name__=='__main__':

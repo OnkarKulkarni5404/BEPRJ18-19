@@ -269,6 +269,43 @@ def stochastic_oscillator_k(df):
     df = df.join(SOk)
     return df
 
+#Calculating On_Balance_Moving Average
+def onbv(data):
+    onbv=[]
+    for i in range(data.shape[0]):
+        if i>0:
+            last_obv=onbv[i-1]
+            if data['close'][i]>data['close'][i-1]:
+                current_obv=last_obv+data['volume'][i]
+            elif data['close'][i]<data['close'][i-1]:
+                current_obv=last_obv-data['volume'][i]
+            else:
+                current_obv=last_obv
+        else:
+            last_obv=0
+            current_obv=data['volume'][i]
+        onbv.append(current_obv)
+    # print(onbv)
+    return data.assign(On_Balance_Volume=onbv)
+
+def price_volume_trend(data):
+    pvt = []
+    for index in range(data.shape[0]):
+        if index > 0:
+                last_val = pvt[index - 1]
+                last_close = data['close'][index - 1]
+                today_close = data['close'][index]
+                today_vol = data['volume'][index]
+                current_val = last_val + (today_vol * (today_close - last_close) / last_close)
+        else:
+                current_val = data['volume'][index]
+        pvt.append(current_val)
+    return data.assign(Price_Volume_Trend=pvt)
+
+
+
+
+
 def corrfind(df):
     col_correlations = df.corr()
     col_correlations.loc[:, :] = np.tril(col_correlations, k=-1)
@@ -277,7 +314,8 @@ def corrfind(df):
 
 
 def main():
-    data = load_stock(companyname="A_data.csv")
+    companyname=input("Enter Company name")
+    data = load_stock(companyname+".csv")
     data = calculateSMA(data,10)
     data = calculateWMA(data)
     data = calculateMomentum(data)
@@ -289,23 +327,20 @@ def main():
     data=calculateAroon(data)
     data=AroonOscillator(data)
     data=calcTrueRange(data)
-    data=rateofchange(data)
     data=ppsr(data)
     data=stochastic_oscillator_k(data)
-    data.to_csv('A_data_modified.csv', encoding='utf-8', index=False)
-    print("Run Successfully")
+    data = onbv(data)
+    data=price_volume_trend(data)
 
-    newd=pd.read_csv('A_data_modified.csv')
+    data.to_csv(companyname+'_modified.csv', encoding='utf-8', index=False)
+    print("Run Successfully")
+    #corr calculated
+    newd=pd.read_csv(companyname+'_modified.csv')
     data=corrfind(newd)
     data.to_csv('Co_realtions.csv',encoding='utf-8', index=False)
     print("Calculated Corelations")
 
-    #newd=newd.corr().sort_values(by=['MACD'],ascending=False)
-    #pd.plotting.scatter_matrix(data,alpha=0.3,figsize=[16,12])
-      
-    mp.plot(data['MACD'])
-    mp.plot(data['close'])
-        
+
 
 
 if __name__=='__main__':

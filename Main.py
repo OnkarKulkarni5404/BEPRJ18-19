@@ -2,6 +2,7 @@ import pandas as pd
 import matplotlib.pyplot as mp
 import numpy as np
 import os
+import math
 
 
 def load_stock(companyname=""):
@@ -303,42 +304,123 @@ def price_volume_trend(data):
     return data.assign(Price_Volume_Trend=pvt)
 
 
+def find_up_down(data):
+    up_down=[]
+    for i in range(1,data.shape[0]):
+        if(data['close'].iloc[i]>data['close'].iloc[i-1]):
+            up_down.append(str('+1'))
+        else:
+            up_down.append(str('-1'))
+    data=data.iloc[1:]
+    return data.assign(Status=up_down)
 
 
-
-def corrfind(df):
-    col_correlations = df.corr()
-    col_correlations.loc[:, :] = np.tril(col_correlations, k=-1)
-    return col_correlations
-
-
-
-def main():
-    companyname=input("Enter Company name")
-    data = load_stock(companyname+".csv")
-    data = calculateSMA(data,10)
+def CalculateTI(companyname):
+    data = load_stock(companyname + ".csv")
+    data = calculateSMA(data, 10)
     data = calculateWMA(data)
     data = calculateMomentum(data)
     data = calculateRSI(data)
     data = calculateWilliam(data)
-    data=calculateMACD(data)
-    data=calculateCCI(data)
-    data=acc_dist(data)
-    data=calculateAroon(data)
-    data=AroonOscillator(data)
-    data=calcTrueRange(data)
-    data=ppsr(data)
-    data=stochastic_oscillator_k(data)
+    data = calculateMACD(data)
+    data = calculateCCI(data)
+    data = acc_dist(data)
+    data = calculateAroon(data)
+    data = AroonOscillator(data)
+    data = calcTrueRange(data)
+    data = ppsr(data)
+    data = stochastic_oscillator_k(data)
     data = onbv(data)
-    data=price_volume_trend(data)
+    data = price_volume_trend(data)
+    data = find_up_down(data)
+    return data
 
-    data.to_csv(companyname+'_modified.csv', encoding='utf-8', index=False)
-    print("Run Successfully")
-    #corr calculated
-    newd=pd.read_csv(companyname+'_modified.csv')
-    data=corrfind(newd)
-    data.to_csv('Co_realtions.csv',encoding='utf-8', index=False)
-    print("Calculated Corelations")
+def splitme(data,df):
+
+    columns=list(df.head(0))
+    Training=pd.DataFrame(index=df.index.values,columns=columns)
+    Holdout=pd.DataFrame(index=df.index.values,columns=columns)
+
+    j=0
+
+    for k in data:
+        pcount = math.ceil(k[1] / 2)
+        ncount = math.ceil(k[2] / 2)
+
+        pcount2 = k[1] - pcount
+        ncount2 = k[2] - ncount
+
+        for i in range(j, df.shape[0]):
+
+            if (pcount == 0 and ncount == 0 and pcount2 == 0 and ncount2 == 0):
+                j = i
+                break
+            if (pcount != 0 and df['Status'].iloc[i] == '+1'):
+                Training.loc[df.index[i]] = df.iloc[i]
+                pcount -= 1
+            elif (pcount2 != 0 and df['Status'].iloc[i] == '+1'):
+                Holdout.loc[df.index[i]] = df.iloc[i]
+                pcount2 -= 1
+            elif (ncount != 0 and df['Status'].iloc[i] == '-1'):
+                Training.loc[df.index[i]] = df.iloc[i]
+                ncount -= 1
+            elif (ncount2 != 0 and df['Status'].iloc[i] == '-1'):
+                Holdout.loc[df.index[i]] = df.iloc[i]
+                ncount2 -= 1
+            else:
+                print('Out of Bounds')
+
+    Training = Training.dropna()
+    Holdout=Holdout.dropna()
+    Training.to_csv('Training.csv', encoding='utf-8', index=False)
+    print("Training written")
+    Holdout.to_csv('Holdout.csv',encoding='utf-8',index=False)
+    print("Holdout written")
+
+
+def distri(data):
+    data = data.dropna()
+    start_year = int(data['date'].iloc[0][:-6])
+
+    value_me = []
+    dataf = []
+    up_count = 0
+    down_count = 0
+    for i in range(1, data.shape[0]):
+
+        if (data['close'].iloc[i] > data['close'].iloc[i - 1]):
+            up_count += 1
+        else:
+            down_count += 1
+
+        if (int(data['date'].iloc[i][:-6]) != start_year):
+            value_me.append(start_year)
+            value_me.append(up_count)
+            value_me.append(down_count)
+            dataf.append(value_me)
+            value_me = []
+            up_count = 0
+            down_count = 0
+            start_year = int(data['date'].iloc[i][:-6])
+
+    value_me = []
+    value_me.append(start_year)
+    value_me.append(up_count)
+    value_me.append(down_count)
+    dataf.append(value_me)
+    splitme(dataf,data)
+
+
+def main():
+    companyname=input("Enter Company name")
+    data=CalculateTI(companyname)
+    data.to_csv(companyname + '_modified.csv', encoding='utf-8', index=False)
+    distri(data)
+
+
+    print("Main() Run Successfully")
+
+
 
 
 

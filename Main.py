@@ -1,16 +1,9 @@
 import pandas as pd
-import matplotlib.pyplot as mp
 import numpy as np
-import os
 import math
+import finta as finta
 
-
-def load_stock(companyname=""):
-    csv_path = os.path.join('individual_stocks_5yr',companyname)
-    return pd.read_csv(csv_path)
-
-
-#indicator 1 Simple Moving Average
+# indicator 1 Simple Moving Average
 def calculateSMA(data,window):
     ans=[]
     values=np.asarray(data['close'])
@@ -22,7 +15,7 @@ def calculateSMA(data,window):
     return data.assign(SMA=ans)
 
 
-#indicator 2 Weighted Moving Average
+# indicator 2 Weighted Moving Average
 def calculateWMA(A_data):
     WMA=[]
     num=0;
@@ -37,7 +30,7 @@ def calculateWMA(A_data):
             WMA.append(SUM/num)
     return A_data.assign(WMA=WMA)
 
-#indicator 3 Momentum
+# indicator 3 Momentum
 def calculateMomentum(data):
     Mom=[]
     for i in range(data.shape[0]):
@@ -47,7 +40,7 @@ def calculateMomentum(data):
             Mom.append(data['close'][i-9]-data['close'][i])
     return data.assign(Momentum=Mom)
 
-#indicator 4 Relative Strength Index
+# indicator 4 Relative Strength Index
 def calculateRSI(A_data):
     n = 14
     delta = A_data['close'].diff()
@@ -78,9 +71,9 @@ def calculateWilliam(A_data):
             MIN=99
             MAX=0
             for j in range(i-14,i+1):
-                MIN=MIN if MIN<A_data['low'][j] else A_data['low'][j]
-                MAX=MAX if MAX>A_data['high'][j] else A_data['high'][j]
-            William.append((MAX-A_data['close'][j])/(MAX-MIN) *-100)
+                MIN=MIN if MIN<A_data['low'].iloc[j] else A_data['low'].iloc[j]
+                MAX=MAX if MAX>A_data['high'].iloc[j] else A_data['high'].iloc[j]
+            William.append((MAX-A_data['close'].iloc[j])/(MAX-MIN) *-100)
     return A_data.assign(WilliamK=William)
 
 #indicator  Exponential Moving Average
@@ -127,7 +120,7 @@ def calculateCCI(A_data):
     tf = 14
     x = 0
     while (x < A_data.shape[0]):
-        tp = (A_data['low'][x] + A_data['high'][x] + A_data['close'][x]) / 3
+        tp = (A_data['low'].iloc[x] + A_data['high'].iloc[x] + A_data['close'].iloc[x]) / 3
         typprice.append(tp)
         x += 1
 
@@ -165,15 +158,14 @@ def calculateCCI(A_data):
 #indicator 8 Accumulation Distribbution Line
 def acc_dist(data):
     trend_periods=21
-    ad=[]
     for x in range (0,data.shape[0]):
-        if(data['high'][x]!=data['low'][x]):
-            ac=((data['close'][x]-data['low'][x])-(data['high'][x]-data['close'][x]))/(data['high'][x]-data['low'][x]) * \
-               data['volume'][x]
+        if(data['high'].iloc[x]!=data['low'].iloc[x]):
+            ac=((data['close'].iloc[x]-data['low'].iloc[x])-(data['high'].iloc[x]-data['close'].iloc[x]))/(data['high'].iloc[x]-data['low'].iloc[x]) * \
+               data['volume'].iloc[x]
         else:
             ac=0
         data.set_value(x, 'acc_dist', ac)
-    data['AD-:' + str(trend_periods)] = data['acc_dist'].ewm(ignore_na=False, min_periods=0, com=trend_periods,
+    data['AD' + str(trend_periods)] = data['acc_dist'].ewm(ignore_na=False, min_periods=0, com=trend_periods,
                                                                      adjust=True).mean()
     return data
 
@@ -216,14 +208,13 @@ def cTR(h,l,yc):
     x=h-l
     y=abs(h-yc)
     z=abs(l-yc)
-
+    TR=0
     if y<=x>=z:
         TR=x
     elif x<=y>=z:
         TR=y
     elif x<=z>=y:
         TR=z
-
     return TR
 
 
@@ -231,7 +222,8 @@ def calcTrueRange(data):
     x=0
     TrueRange=[]
     for x in range(1,data.shape[0]):
-        TrueRange.append(cTR(data['high'][x],data['low'][x],data['close'][x-1]))
+        x1=cTR(data['high'][x],data['low'][x],data['close'][x-1])
+        TrueRange.append(x1)
     TrueRange.insert(0,None)
     return data.assign(ATR=TrueRange)
 
@@ -276,15 +268,15 @@ def onbv(data):
     for i in range(data.shape[0]):
         if i>0:
             last_obv=onbv[i-1]
-            if data['close'][i]>data['close'][i-1]:
-                current_obv=last_obv+data['volume'][i]
-            elif data['close'][i]<data['close'][i-1]:
-                current_obv=last_obv-data['volume'][i]
+            if data['close'].iloc[i]>data['close'].iloc[i-1]:
+                current_obv=last_obv+data['volume'].iloc[i]
+            elif data['close'].iloc[i]<data['close'].iloc[i-1]:
+                current_obv=last_obv-data['volume'].iloc[i]
             else:
                 current_obv=last_obv
         else:
             last_obv=0
-            current_obv=data['volume'][i]
+            current_obv=data['volume'].iloc[i]
         onbv.append(current_obv)
     # print(onbv)
     return data.assign(On_Balance_Volume=onbv)
@@ -312,15 +304,20 @@ def find_up_down(data):
         else:
             up_down.append(str('-1'))
     data=data.iloc[1:]
-    return data.assign(Status=up_down)
+    return data.assign(y=up_down)
 
 
 def CalculateTI(companyname):
-    data = load_stock(companyname + ".csv")
+    ta=finta.TA
+
+    data = pd.read_csv(companyname + ".csv")
+    data.close=data.close.shift(1)
+    data = data.dropna()
+
     data = calculateSMA(data, 10)
-    data = calculateWMA(data)
-    data = calculateMomentum(data)
-    data = calculateRSI(data)
+    data= data.assign(WMA=ta.WMA(data,10))
+    data = data.assign(MOM=ta.MOM(data))
+    data = data.assign(RSI=ta.RSI(data))
     data = calculateWilliam(data)
     data = calculateMACD(data)
     data = calculateCCI(data)
@@ -331,7 +328,6 @@ def CalculateTI(companyname):
     data = ppsr(data)
     data = stochastic_oscillator_k(data)
     data = onbv(data)
-    data = price_volume_trend(data)
     data = find_up_down(data)
     return data
 
@@ -355,33 +351,32 @@ def splitme(data,df):
             if (pcount == 0 and ncount == 0 and pcount2 == 0 and ncount2 == 0):
                 j = i
                 break
-            if (pcount != 0 and df['Status'].iloc[i] == '+1'):
+            if (pcount != 0 and df['y'].iloc[i] == '+1'):
                 Training.loc[df.index[i]] = df.iloc[i]
                 pcount -= 1
-            elif (pcount2 != 0 and df['Status'].iloc[i] == '+1'):
+            elif (pcount2 != 0 and df['y'].iloc[i] == '+1'):
                 Holdout.loc[df.index[i]] = df.iloc[i]
                 pcount2 -= 1
-            elif (ncount != 0 and df['Status'].iloc[i] == '-1'):
+            elif (ncount != 0 and df['y'].iloc[i] == '-1'):
                 Training.loc[df.index[i]] = df.iloc[i]
                 ncount -= 1
-            elif (ncount2 != 0 and df['Status'].iloc[i] == '-1'):
+            elif (ncount2 != 0 and df['y'].iloc[i] == '-1'):
                 Holdout.loc[df.index[i]] = df.iloc[i]
                 ncount2 -= 1
             else:
-                print('Out of Bounds')
+                pass
 
     Training = Training.dropna()
     Holdout=Holdout.dropna()
     Training.to_csv('Training.csv', encoding='utf-8', index=False)
-    print("Training written")
+    print("-_----_----_-")
     Holdout.to_csv('Holdout.csv',encoding='utf-8',index=False)
-    print("Holdout written")
+    print("-_----_----_-")
 
 
 def distri(data):
     data = data.dropna()
     start_year = int(data['date'].iloc[0][:-6])
-
     value_me = []
     dataf = []
     up_count = 0
@@ -411,19 +406,15 @@ def distri(data):
     splitme(dataf,data)
 
 
-def main():
-    companyname=input("Enter Company name")
+def main(companyname):
+    #companyname=input("Enter Company name")
+
     data=CalculateTI(companyname)
     data.to_csv(companyname + '_modified.csv', encoding='utf-8', index=False)
     distri(data)
 
 
-    print("Main() Run Successfully")
 
-
-
-
-
-
-if __name__=='__main__':
-    main()
+# if __name__=='__main__':
+#     main()
+onkar.kulkarni@viit.ac.in
